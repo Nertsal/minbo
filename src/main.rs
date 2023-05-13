@@ -1,9 +1,10 @@
-use color_eyre::eyre::Context;
-use color_eyre::Help;
-use serde::Deserialize;
+use color_eyre::eyre::{eyre, Context};
 use tracing::instrument;
-use twitch_api::helix::HelixClient;
-use twitch_api::twitch_oauth2::{AccessToken, UserToken};
+
+mod client;
+mod secret;
+mod token;
+mod util;
 
 fn install_tracing() -> color_eyre::Result<()> {
     use tracing_error::ErrorLayer;
@@ -23,63 +24,6 @@ fn install_tracing() -> color_eyre::Result<()> {
 #[derive(clap::Parser)]
 struct Args {}
 
-struct Secrets {
-    login: SecretLogin,
-}
-
-type LoginName = String;
-
-#[derive(Deserialize)]
-struct SecretLogin {
-    // login_name: LoginName,
-    oauth_token: String,
-    channel_login: LoginName,
-}
-
-fn read_to_string(path: impl AsRef<std::path::Path>) -> color_eyre::Result<String> {
-    let path = path.as_ref();
-    let s =
-        std::fs::read_to_string(path).wrap_err_with(|| format!("Failed to read from {path:?}"))?;
-    Ok(s)
-}
-
-/// Reads from a file and attempts to parse its contents from toml format.
-fn read_toml<T: serde::de::DeserializeOwned>(
-    path: impl AsRef<std::path::Path>,
-) -> color_eyre::Result<T> {
-    let content = read_to_string(path)?;
-    let result = toml::from_str(&content)?;
-    Ok(result)
-}
-
-/// Loads the secrets from the secrets folder.
-#[instrument]
-fn load_secrets() -> color_eyre::Result<Secrets> {
-    const SECRETS: &str = "secrets";
-    let path = std::path::Path::new(SECRETS);
-
-    let login = read_toml(path.join("login.toml")).wrap_err("Failed to load login secret")?;
-
-    Ok(Secrets { login })
-}
-
-struct Client {
-    helix: HelixClient<'static, reqwest::Client>,
-    token: UserToken,
-}
-
-// IMPORTANT: Careful not to expose `oauth_token` in the error message.
-async fn setup_client(oauth_token: &str) -> color_eyre::Result<Client> {
-    // Create the HelixClient, which is used to make requests to the Twitch API
-    let helix: HelixClient<reqwest::Client> = HelixClient::default();
-    // Create a UserToken, which is used to authenticate requests
-    let token = UserToken::from_token(&helix, AccessToken::from(oauth_token))
-        .await
-        .wrap_err("Failed to verify oauth token")
-        .suggestion("Token might be expired: consider acquiring a new one")?;
-    Ok(Client { helix, token })
-}
-
 #[tokio::main]
 #[instrument]
 async fn main() -> color_eyre::Result<()> {
@@ -90,20 +34,25 @@ async fn main() -> color_eyre::Result<()> {
     let _args: Args = clap::Parser::parse();
 
     // Load secrets
-    let secrets = load_secrets().wrap_err("Failed to load secrets")?;
+    let secrets = secret::Secrets::load().wrap_err("Failed to load secrets")?;
 
     // Verify token and setup client
-    let client = setup_client(&secrets.login.oauth_token)
+    let client = client::Client::new(&secrets)
         .await
         .wrap_err("Failed to setup client")?;
 
-    println!(
-        "Channel: {:?}",
-        client
-            .helix
-            .get_channel_from_login(&secrets.login.channel_login, &client.token)
-            .await?
-    );
+    let channel = client
+        .helix
+        .get_channel_from_login("Nertsal", &client.token)
+        .await?
+        .ok_or(eyre!("Channel not found"))?;
+    println!("Channel: {:?}", channel);
+
+    let emotes = client
+        .helix
+        .get_channel_emotes_from_login("Nertsal", &client.token)
+        .await?;
+    println!("Emotes: {:?}", emotes);
 
     Ok(())
 }
