@@ -1,16 +1,10 @@
 use color_eyre::eyre::Context;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::instrument;
-use twitch_irc::{
-    login::StaticLoginCredentials, message::ServerMessage, SecureTCPTransport, TwitchIRCClient,
-};
 
+mod app;
 mod client;
 mod secret;
 mod util;
-
-type TwitchClient = TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>;
-type TwitchReceiver = UnboundedReceiver<ServerMessage>;
 
 fn install_tracing() -> color_eyre::Result<()> {
     use tracing_error::ErrorLayer;
@@ -44,36 +38,8 @@ async fn main() -> color_eyre::Result<()> {
     let secrets = secret::Secrets::load().wrap_err("when loading secrets")?;
 
     // Configure the client
-    let mut client = client::Client::new(&secrets).wrap_err("when setting up client")?;
+    let client = client::TwitchClient::new(&secrets).wrap_err("when setting up client")?;
 
-    client
-        .twitch
-        .join("nertsal".to_string())
-        .wrap_err("when joining a channel")?;
-    client
-        .twitch
-        .say("nertsal".to_string(), "Hello".to_string())
-        .await
-        .wrap_err("when sending a message")?;
-
-    // Event loop
-    loop {
-        if let Some(message) = client.try_recv().wrap_err("when receiving a message")? {
-            process_message(message).wrap_err("when processing a message")?;
-        }
-    }
-}
-
-/// Process an event from Twitch.
-fn process_message(message: ServerMessage) -> color_eyre::Result<()> {
-    log::debug!("Received message: {:?}", message);
-    match message {
-        ServerMessage::Notice(notice) => log::info!("Notice: {}", notice.message_text),
-        ServerMessage::Privmsg(message) => {
-            log::info!("[Chat] {}: {}", message.channel_login, message.message_text)
-        }
-        ServerMessage::UserNotice(notice) => log::info!("Event: {}", notice.system_message),
-        _ => {}
-    }
-    Ok(())
+    // Start the app
+    app::App::new(client).run().await
 }
