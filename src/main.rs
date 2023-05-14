@@ -5,6 +5,7 @@ mod client;
 mod secret;
 mod token;
 mod util;
+mod websocket;
 
 fn install_tracing() -> color_eyre::Result<()> {
     use tracing_error::ErrorLayer;
@@ -36,10 +37,17 @@ async fn main() -> color_eyre::Result<()> {
     // Load secrets
     let secrets = secret::Secrets::load().wrap_err("Failed to load secrets")?;
 
+    // Create a channel for Twitch events
+    let (sender, receiver) = tokio::sync::mpsc::channel(32);
+
     // Verify token and setup client
-    let client = client::Client::new(&secrets)
+    let mut client = client::Client::new(&secrets, receiver)
         .await
         .wrap_err("Failed to setup client")?;
+
+    // Launch websocket client in a separate thread for EventSub
+    let websocket = websocket::WebsocketClient::new(sender);
+    let websocket_handle = tokio::spawn(async move { websocket.run().await });
 
     let channel = client
         .helix
@@ -54,5 +62,26 @@ async fn main() -> color_eyre::Result<()> {
         .await?;
     println!("Emotes: {:?}", emotes);
 
-    Ok(())
+    if websocket_handle.is_finished() {
+        // Error occured - probably setup is wrong - report
+        websocket_handle
+            .await
+            .wrap_err("Websocket stopped early")??;
+        return Err(eyre!("Websocket stopped early, but no error got returned"));
+    }
+
+    // Listen for event from websocket in this thread
+    let err = loop {
+        if let Err(err) = client.process_events().await {
+            break err;
+        }
+    };
+
+    // Abort websocket handle
+    websocket_handle.abort();
+    if let Err(err) = (async { websocket_handle.await? }).await {
+        log::error!("\nWebsocket error:\n{}", err);
+    }
+
+    Err(err)
 }

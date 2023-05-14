@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use twitch_api::helix::HelixClient;
 use twitch_api::twitch_oauth2::tokens::UserTokenBuilder;
 use twitch_api::twitch_oauth2::{
-    AccessToken, ClientSecret, RefreshToken, Scope, TwitchToken, UserToken,
+    AccessToken, ClientId, ClientSecret, RefreshToken, Scope, TwitchToken, UserToken,
 };
 
 const SCOPES: [Scope; 2] = [
@@ -87,26 +87,40 @@ pub async fn get_user_token(
         let tokens: Tokens = crate::util::fs::read_toml(&tokens_file_path)
             .wrap_err("Failed to read an existing token")?;
 
-        let access_token =
+        let mut access_token =
             AccessToken::from_str(&tokens.access_token).wrap_err("Invalid acccess token")?;
-        let refresh_token =
+        let mut refresh_token =
             RefreshToken::from_str(&tokens.refresh_token).wrap_err("Invalid refresh token")?;
 
-        let validated = access_token
-            .validate_token(helix)
-            .await
-            .wrap_err("Failed to validate token")?;
-
+        let client_id = ClientId::new(secrets.client.client_id.clone());
         let client_secret = ClientSecret::new(secrets.client.client_secret.clone());
 
-        let mut user_token =
-            UserToken::new(access_token, Some(refresh_token), validated, client_secret)?;
+        // Validate token
+        let validated = match access_token.validate_token(helix).await {
+            Ok(token) => token,
+            Err(err) => {
+                let twitch_api::twitch_oauth2::tokens::errors::ValidationError::NotAuthorized = err else {
+                    return Err(err.into());
+                };
+                // Refresh token
+                log::debug!("Token expired, refreshing");
+                let (new_access_token, _expires_in, new_refresh_token) = refresh_token
+                    .refresh_token(helix, &client_id, &client_secret)
+                    .await?; // TODO: prompt user for a new token
+                access_token = new_access_token;
+                refresh_token =
+                    new_refresh_token.ok_or_else(|| eyre!("Did not get a new refresh token"))?;
 
-        // Refresh token
-        if user_token.is_elapsed() {
-            log::debug!("Token expired, refreshing");
-            user_token.refresh_token(helix).await?;
-        }
+                // Validate again, this time should be good
+                access_token
+                    .validate_token(helix)
+                    .await
+                    .wrap_err("Failed to validate token")?
+            }
+        };
+
+        let user_token =
+            UserToken::new(access_token, Some(refresh_token), validated, client_secret)?;
 
         (tokens, user_token)
     } else {
