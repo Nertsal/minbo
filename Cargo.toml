@@ -8,19 +8,17 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.2.7", features = ["derive"] }
 color-eyre = "0.6.2"
-futures = "0.3.28"
 hyper = { version = "0.14.26", features = ["server", "http1", "tcp"] }
 log = "0.4.17"
 open = "4.1.0"
 reqwest = "0.11.17"
 serde = { version = "1.0.163", features = ["derive"] }
 tokio = { version = "1.28.1", features = ["full"] }
-tokio-tungstenite = { version = "0.18.0", features = ["native-tls"] }
 toml = "0.7.3"
 tracing = "0.1.37"
 tracing-error = "0.2.0"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-twitch_api = { version = "0.7.0-rc.6", features = ["helix", "reqwest", "eventsub", "unsupported"] }
+twitch-irc = "5.0.0"
 
 # Always compile dependencies with high optimizations
 [profile.dev.package."*"]

@@ -1,11 +1,17 @@
-use color_eyre::eyre::{eyre, Context};
+use color_eyre::eyre::Context;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::instrument;
+use twitch_irc::{
+    login::StaticLoginCredentials, message::ServerMessage, ClientConfig, SecureTCPTransport,
+    TwitchIRCClient,
+};
 
 mod client;
 mod secret;
-mod token;
 mod util;
-mod websocket;
+
+type TwitchClient = TwitchIRCClient<SecureTCPTransport, StaticLoginCredentials>;
+type TwitchReceiver = UnboundedReceiver<ServerMessage>;
 
 fn install_tracing() -> color_eyre::Result<()> {
     use tracing_error::ErrorLayer;
@@ -37,51 +43,27 @@ async fn main() -> color_eyre::Result<()> {
     // Load secrets
     let secrets = secret::Secrets::load().wrap_err("Failed to load secrets")?;
 
-    // Create a channel for Twitch events
-    let (sender, receiver) = tokio::sync::mpsc::channel(32);
+    // Setup up Twitch IRC connection
+    let config = ClientConfig::new_simple(StaticLoginCredentials::new(
+        secrets.client.login_name.clone(),
+        Some(secrets.client.oauth_token.clone()),
+    ));
+    let (irc_receiver, irc_client) = TwitchClient::new(config);
 
-    // Verify token and setup client
-    let mut client = client::Client::new(&secrets, receiver)
+    // Configure the client
+    let mut client = client::Client::new(irc_client, irc_receiver)
         .await
-        .wrap_err("Failed to setup client")?;
+        .wrap_err("failed to setup client")?;
 
-    // Launch websocket client in a separate thread for EventSub
-    let websocket = websocket::WebsocketClient::new(sender);
-    let websocket_handle = tokio::spawn(async move { websocket.run().await });
+    client.process_events().await?;
 
-    let channel = client
-        .helix
-        .get_channel_from_login("Nertsal", &client.token)
-        .await?
-        .ok_or(eyre!("Channel not found"))?;
-    println!("Channel: {:?}", channel);
-
-    let emotes = client
-        .helix
-        .get_channel_emotes_from_login("Nertsal", &client.token)
+    client.twitch.join("nertsal".to_string())?;
+    client
+        .twitch
+        .say("nertsal".to_string(), "Hello".to_string())
         .await?;
-    println!("Emotes: {:?}", emotes);
 
-    if websocket_handle.is_finished() {
-        // Error occured - probably setup is wrong - report
-        websocket_handle
-            .await
-            .wrap_err("Websocket stopped early")??;
-        return Err(eyre!("Websocket stopped early, but no error got returned"));
+    loop {
+        client.process_events().await?;
     }
-
-    // Listen for event from websocket in this thread
-    let err = loop {
-        if let Err(err) = client.process_events().await {
-            break err;
-        }
-    };
-
-    // Abort websocket handle
-    websocket_handle.abort();
-    if let Err(err) = (async { websocket_handle.await? }).await {
-        log::error!("\nWebsocket error:\n{}", err);
-    }
-
-    Err(err)
 }

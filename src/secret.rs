@@ -10,6 +10,7 @@ pub struct Secrets {
 #[derive(Deserialize)]
 pub struct SecretClient {
     pub login_name: String,
+    pub oauth_token: String,
     pub client_id: String,
     pub client_secret: String,
 }
