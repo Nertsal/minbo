@@ -2,8 +2,7 @@ use color_eyre::eyre::Context;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::instrument;
 use twitch_irc::{
-    login::StaticLoginCredentials, message::ServerMessage, ClientConfig, SecureTCPTransport,
-    TwitchIRCClient,
+    login::StaticLoginCredentials, message::ServerMessage, SecureTCPTransport, TwitchIRCClient,
 };
 
 mod client;
@@ -34,6 +33,7 @@ struct Args {}
 #[tokio::main]
 #[instrument]
 async fn main() -> color_eyre::Result<()> {
+    // Setup error handling
     install_tracing()?;
     color_eyre::install()?;
 
@@ -41,29 +41,39 @@ async fn main() -> color_eyre::Result<()> {
     let _args: Args = clap::Parser::parse();
 
     // Load secrets
-    let secrets = secret::Secrets::load().wrap_err("Failed to load secrets")?;
-
-    // Setup up Twitch IRC connection
-    let config = ClientConfig::new_simple(StaticLoginCredentials::new(
-        secrets.client.login_name.clone(),
-        Some(secrets.client.oauth_token.clone()),
-    ));
-    let (irc_receiver, irc_client) = TwitchClient::new(config);
+    let secrets = secret::Secrets::load().wrap_err("when loading secrets")?;
 
     // Configure the client
-    let mut client = client::Client::new(irc_client, irc_receiver)
-        .await
-        .wrap_err("failed to setup client")?;
+    let mut client = client::Client::new(&secrets).wrap_err("when setting up client")?;
 
-    client.process_events().await?;
-
-    client.twitch.join("nertsal".to_string())?;
+    client
+        .twitch
+        .join("nertsal".to_string())
+        .wrap_err("when joining a channel")?;
     client
         .twitch
         .say("nertsal".to_string(), "Hello".to_string())
-        .await?;
+        .await
+        .wrap_err("when sending a message")?;
 
+    // Event loop
     loop {
-        client.process_events().await?;
+        if let Some(message) = client.try_recv().wrap_err("when receiving a message")? {
+            process_message(message).wrap_err("when processing a message")?;
+        }
     }
+}
+
+/// Process an event from Twitch.
+fn process_message(message: ServerMessage) -> color_eyre::Result<()> {
+    log::debug!("Received message: {:?}", message);
+    match message {
+        ServerMessage::Notice(notice) => log::info!("Notice: {}", notice.message_text),
+        ServerMessage::Privmsg(message) => {
+            log::info!("[Chat] {}: {}", message.channel_login, message.message_text)
+        }
+        ServerMessage::UserNotice(notice) => log::info!("Event: {}", notice.system_message),
+        _ => {}
+    }
+    Ok(())
 }

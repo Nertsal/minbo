@@ -3,7 +3,7 @@ use serde::Deserialize;
 use tracing::instrument;
 
 pub struct Secrets {
-    pub path: std::path::PathBuf,
+    // pub path: std::path::PathBuf,
     pub client: SecretClient,
 }
 
@@ -11,8 +11,8 @@ pub struct Secrets {
 pub struct SecretClient {
     pub login_name: String,
     pub oauth_token: String,
-    pub client_id: String,
-    pub client_secret: String,
+    // pub client_id: String,
+    // pub client_secret: String,
 }
 
 impl Secrets {
@@ -27,8 +27,8 @@ impl Secrets {
         let path = path.as_ref().to_owned();
 
         let client = crate::util::fs::read_toml(path.join("login.toml"))
-            .wrap_err("Failed to load login secret")?;
+            .wrap_err("when loading client secret")?;
 
-        Ok(Self { path, client })
+        Ok(Self { client })
     }
 }
