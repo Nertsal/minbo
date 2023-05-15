@@ -12,15 +12,28 @@ const NAME_LENGTH: usize = 25;
 
 type Frame<'a> = tui::Frame<'a, Backend>;
 
-pub struct Render {}
+pub struct Render {
+    /// Converted from `model.chatters` for convenience (and to avoid recalculations per widget).
+    chatters: Vec<(String, Color)>,
+}
 
 impl Render {
     pub fn new() -> Self {
-        Self {}
+        Self { chatters: vec![] }
     }
 
     /// Render the model to the terminal.
     pub fn draw(&mut self, terminal: &mut Terminal, model: &Model) -> color_eyre::Result<()> {
+        self.chatters = model
+            .chatters
+            .iter()
+            .map(|(name, &color)| (name.clone(), color))
+            .collect();
+        // Process longest names first in case someone's name is a substring of another person's name.
+        // That way the longest name will be prioritized.
+        self.chatters
+            .sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+
         terminal
             .draw(|frame| self.draw_frame(model, frame))
             .wrap_err("when rendering terminal")?;
@@ -41,13 +54,35 @@ impl Render {
             .rev() // Reverse to show newest at the bottom
             .map(|item| match item {
                 ChatItem::Message(msg) => ListItem::new(self.render_message(model, msg)),
-                ChatItem::Event(msg) => ListItem::new(msg.to_string()),
+                ChatItem::Event(msg) => ListItem::new(self.render_event(msg)),
             })
             .collect::<Vec<_>>();
         List::new(chat)
             .block(Block::default().title("Chat").borders(Borders::all()))
             .highlight_style(Style::default())
             .start_corner(Corner::BottomLeft)
+    }
+
+    fn render_event<'a>(&self, msg: &'a str) -> Spans<'a> {
+        let bg_color = Color::DarkGray;
+        let fg_color = Color::Magenta;
+        let style = Style::default().fg(fg_color).bg(bg_color);
+        let mut spans = vec![
+            Span::styled(format!("{:>w$}", "Event", w = NAME_LENGTH), style),
+            Span::styled(": ", style),
+        ];
+        spans.extend(
+            colorize_names(msg, &self.chatters)
+                .into_iter()
+                .map(|mut span| {
+                    span.style = span
+                        .style
+                        .fg(span.style.fg.unwrap_or(fg_color))
+                        .bg(bg_color);
+                    span
+                }),
+        );
+        Spans::from(spans)
     }
 
     fn render_message<'a>(&self, model: &Model, msg: &'a PrivmsgMessage) -> Spans<'a> {
@@ -63,32 +98,22 @@ impl Render {
             ),
             Span::raw(": "),
         ];
-        spans.extend(colorize_names(
-            &msg.message_text,
-            model
-                .chatters
-                .iter()
-                .map(|(name, &color)| (name.clone(), color))
-                .collect(),
-        ));
+        spans.extend(colorize_names(&msg.message_text, &self.chatters));
         Spans::from(spans)
     }
 }
 
 /// Find all names in the message and
-fn colorize_names(message: &str, mut names: Vec<(String, Color)>) -> Vec<Span<'_>> {
+fn colorize_names<'a>(message: &'a str, names: &[(String, Color)]) -> Vec<Span<'a>> {
     enum Slice<'a> {
         Raw(&'a str),
         Colored(Span<'a>),
     }
 
     let mut result = vec![Slice::Raw(message)];
-
-    // Process longest names first in case someone's name is a substring of another person's name.
-    // That way the longest name will be prioritized.
-    names.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
     for (name, color) in names {
         let name = name.to_lowercase();
+        let &color = color;
         result = result
             .into_iter()
             .flat_map(|slice| match slice {
