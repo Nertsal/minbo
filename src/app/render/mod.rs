@@ -1,8 +1,8 @@
 use color_eyre::eyre::Context;
 use tui::style::Color;
-use tui::text::{Span, Spans};
+use tui::style::Style;
+use tui::text::{Span, Spans, Text};
 use tui::widgets::*;
-use tui::{layout::Corner, style::Style};
 use twitch_irc::message::PrivmsgMessage;
 
 use super::model::*;
@@ -48,44 +48,32 @@ impl Render {
     }
 
     fn render_chat<'a>(&self, model: &'a Model) -> impl Widget + 'a {
-        let chat = model
+        let mut chat = Text::default();
+        for item in model
             .chat
             .iter()
             .rev() // Reverse to show newest at the bottom
             .map(|item| match item {
-                ChatItem::Message(msg) => ListItem::new(self.render_message(model, msg)),
-                ChatItem::Event(msg) => ListItem::new(self.render_event(msg)),
+                ChatItem::Message(msg) => self.render_message(model, msg),
+                ChatItem::Event(msg) => self.render_event(msg),
             })
-            .collect::<Vec<_>>();
-        List::new(chat)
+        {
+            chat.extend(item);
+        }
+        Paragraph::new(chat)
             .block(Block::default().title("Chat").borders(Borders::all()))
-            .highlight_style(Style::default())
-            .start_corner(Corner::BottomLeft)
+            .wrap(Wrap { trim: false })
     }
 
-    fn render_event<'a>(&self, msg: &'a str) -> Spans<'a> {
-        let bg_color = Color::DarkGray;
-        let fg_color = Color::Magenta;
-        let style = Style::default().fg(fg_color).bg(bg_color);
-        let mut spans = vec![
-            Span::styled(format!("{:>w$}", "Event", w = NAME_LENGTH), style),
-            Span::styled(": ", style),
-        ];
-        spans.extend(
-            colorize_names(msg, &self.chatters)
-                .into_iter()
-                .map(|mut span| {
-                    span.style = span
-                        .style
-                        .fg(span.style.fg.unwrap_or(fg_color))
-                        .bg(bg_color);
-                    span
-                }),
-        );
-        Spans::from(spans)
+    fn render_event<'a>(&self, msg: &'a str) -> Text<'a> {
+        let mut spans = vec![Span::raw(format!("{:>w$}: ", "Event", w = NAME_LENGTH))];
+        spans.extend(colorize_names(msg, &self.chatters));
+        let mut text = Text::from(Spans::from(spans));
+        text.patch_style(Style::default().fg(Color::Magenta).bg(Color::DarkGray));
+        text
     }
 
-    fn render_message<'a>(&self, model: &Model, msg: &'a PrivmsgMessage) -> Spans<'a> {
+    fn render_message<'a>(&self, model: &Model, msg: &'a PrivmsgMessage) -> Text<'a> {
         let color = model
             .chatters
             .get(&msg.sender.name)
@@ -99,7 +87,7 @@ impl Render {
             Span::raw(": "),
         ];
         spans.extend(colorize_names(&msg.message_text, &self.chatters));
-        Spans::from(spans)
+        Text::from(Spans::from(spans))
     }
 }
 
