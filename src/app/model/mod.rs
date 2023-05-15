@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use tui::style::Color;
 use twitch_irc::message::PrivmsgMessage;
 
 use crate::client::TwitchMessage;
@@ -7,6 +10,7 @@ pub struct Model {
     /// Set to false to shutdown gracefully.
     pub running: bool,
     pub chat: Vec<ChatItem>,
+    pub chatters: HashMap<String, Color>,
 }
 
 pub enum ChatItem {
@@ -20,6 +24,7 @@ impl Model {
         Self {
             running: true,
             chat: vec![],
+            chatters: HashMap::new(),
         }
     }
 
@@ -28,6 +33,10 @@ impl Model {
         log::debug!("Twitch IRC: {:?}", message);
         match message {
             TwitchMessage::Privmsg(message) => {
+                if let Some(color) = message.name_color {
+                    let color = Color::Rgb(color.r, color.g, color.b);
+                    self.chatters.insert(message.sender.name.clone(), color);
+                }
                 self.chat.push(ChatItem::Message(Box::new(message)));
             }
             TwitchMessage::UserNotice(notice) => {
