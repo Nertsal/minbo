@@ -1,47 +1,58 @@
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use twitch_irc::message::PrivmsgMessage;
+
+use crate::client::TwitchMessage;
 
 pub struct Model {
     /// Set to false to shutdown gracefully.
     pub running: bool,
-    pub chat_messages: Vec<ChatMessage>,
+    pub chat: Vec<ChatItem>,
 }
 
-pub struct ChatMessage {
-    pub sender_name: String,
-    pub message: String,
+pub enum ChatItem {
+    /// Boxed due to large size.
+    Message(Box<PrivmsgMessage>),
+    Event(String),
 }
 
 impl Model {
     pub fn new() -> Self {
         Self {
             running: true,
-            chat_messages: vec![
-                ChatMessage {
-                    sender_name: "Nertsal".to_string(),
-                    message: "hello, world".to_string(),
-                },
-                ChatMessage {
-                    sender_name: "kuviman".to_string(),
-                    message: "definitely me".to_string(),
-                },
-            ],
+            chat: vec![],
         }
     }
 
-    pub fn handle_event(&mut self, event: Event) {
+    /// Process an event from Twitch.
+    pub fn handle_twitch_event(&mut self, message: TwitchMessage) -> color_eyre::Result<()> {
+        log::debug!("Twitch IRC: {:?}", message);
+        match message {
+            TwitchMessage::Privmsg(message) => {
+                self.chat.push(ChatItem::Message(Box::new(message)));
+            }
+            TwitchMessage::UserNotice(notice) => {
+                self.chat.push(ChatItem::Event(notice.system_message));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// Process a terminal event.
+    pub fn handle_terminal_event(&mut self, event: Event) {
         match event {
-            Event::FocusGained => todo!(),
-            Event::FocusLost => todo!(),
+            Event::FocusGained => {}
+            Event::FocusLost => {}
             Event::Key(key) => self.handle_key(key),
-            Event::Mouse(_) => todo!(),
-            Event::Paste(_) => todo!(),
-            Event::Resize(_, _) => todo!(),
+            Event::Mouse(_) => {}
+            Event::Paste(_) => {}
+            Event::Resize(_, _) => {}
         }
     }
 
     fn handle_key(&mut self, event: KeyEvent) {
         match event.code {
-            crossterm::event::KeyCode::Char(c) => self.handle_char(c, event.modifiers),
+            KeyCode::Char(c) => self.handle_char(c, event.modifiers),
             _ => {}
         }
     }

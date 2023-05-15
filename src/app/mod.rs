@@ -6,7 +6,7 @@ use self::render::Render;
 
 use color_eyre::eyre::Context;
 
-use crate::client::{TwitchClient, TwitchMessage};
+use crate::client::TwitchClient;
 
 /// The application/interface for the bot.
 pub struct App {
@@ -47,7 +47,8 @@ impl App {
                 .try_recv()
                 .wrap_err("when receiving a message")?
             {
-                self.process_twitch_message(message)
+                self.model
+                    .handle_twitch_event(message)
                     .wrap_err("when processing a message")?;
             }
 
@@ -56,7 +57,7 @@ impl App {
                 .wrap_err("when polling a terminal event")?
             {
                 let event = crossterm::event::read().wrap_err("when reading a terminal event")?;
-                self.model.handle_event(event);
+                self.model.handle_terminal_event(event);
             }
 
             // TODO: lazy
@@ -64,6 +65,9 @@ impl App {
             self.render
                 .draw(&self.model)
                 .wrap_err("when rendering the model")?;
+
+            // TODO: Proper fps control
+            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
 
         Ok(())
@@ -73,18 +77,4 @@ impl App {
     // fn update(&mut self, _delta_time: f32) -> color_eyre::Result<()> {
     //     Ok(())
     // }
-
-    /// Process an event from Twitch.
-    fn process_twitch_message(&mut self, message: TwitchMessage) -> color_eyre::Result<()> {
-        log::debug!("Received message: {:?}", message);
-        match message {
-            TwitchMessage::Notice(notice) => log::info!("Notice: {}", notice.message_text),
-            TwitchMessage::Privmsg(message) => {
-                log::info!("[Chat] {}: {}", message.channel_login, message.message_text)
-            }
-            TwitchMessage::UserNotice(notice) => log::info!("Event: {}", notice.system_message),
-            _ => {}
-        }
-        Ok(())
-    }
 }
