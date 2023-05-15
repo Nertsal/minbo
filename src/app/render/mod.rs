@@ -8,6 +8,8 @@ use twitch_irc::message::PrivmsgMessage;
 use super::model::*;
 use super::{Backend, Terminal};
 
+const NAME_LENGTH: usize = 25;
+
 type Frame<'a> = tui::Frame<'a, Backend>;
 
 pub struct Render {}
@@ -55,7 +57,10 @@ impl Render {
             .copied()
             .unwrap_or(Color::LightBlue);
         let mut spans = vec![
-            Span::styled(&msg.sender.name, Style::default().fg(color)),
+            Span::styled(
+                format!("{:>w$}", msg.sender.name, w = NAME_LENGTH),
+                Style::default().fg(color),
+            ),
             Span::raw(": "),
         ];
         spans.extend(colorize_names(
