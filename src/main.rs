@@ -22,7 +22,10 @@ fn install_tracing() -> color_eyre::Result<()> {
 }
 
 #[derive(clap::Parser)]
-struct Args {}
+struct Args {
+    #[clap(help = "Channel name to connect to")]
+    channel_login: String,
+}
 
 #[tokio::main]
 #[instrument]
@@ -32,7 +35,7 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     // Parse CLI arguments
-    let _args: Args = clap::Parser::parse();
+    let args: Args = clap::Parser::parse();
 
     // Load secrets
     let secrets = secret::Secrets::load().wrap_err("when loading secrets")?;
@@ -41,7 +44,7 @@ async fn main() -> color_eyre::Result<()> {
     let client = client::TwitchClient::new(&secrets).wrap_err("when setting up client")?;
 
     // Start the app
-    app::App::new(client)
+    app::App::new(client, args.channel_login)
         .wrap_err("when setting up app")?
         .run()
         .await
