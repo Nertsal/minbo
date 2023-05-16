@@ -117,12 +117,14 @@ impl<'a> Widget for Chat<'a> {
         let blank_symbol = " ".repeat(highlight_symbol.width());
 
         // TODO: calculate
-        let msg_max_width = 40;
-        let event_max_width = 50;
+        let msg_prefix_len = NAME_LENGTH + 2 + highlight_symbol.width();
+        let msg_max_width = usize::from(area.width).saturating_sub(msg_prefix_len);
+        let event_max_width = usize::from(area.width) / 2;
 
         // Wrap all lines
         let mut chat_lines = Vec::new();
         let mut message_id = 0;
+        // TODO: ignore old messages/cache wrapping
         for item in &self.items {
             match item {
                 ChatItemRender::Msg { sender, msg } => {
@@ -170,13 +172,17 @@ impl<'a> Widget for Chat<'a> {
                     }
 
                     // Reverse lines since they are rendered in reverse
-                    chat_lines.extend(lines);
+                    chat_lines.extend(lines.into_iter().map(|line| (line, Alignment::Left)));
                     message_id += 1;
                 }
                 ChatItemRender::Event { text } => {
                     for line in &text.lines {
                         // Wrap each line in the message
-                        chat_lines.extend(wrap_spans(line, event_max_width));
+                        chat_lines.extend(
+                            wrap_spans(line, event_max_width)
+                                .into_iter()
+                                .map(|line| (line, Alignment::Center)),
+                        );
                     }
                 }
             }
@@ -184,8 +190,8 @@ impl<'a> Widget for Chat<'a> {
 
         // Render line by line in reverse order to show newest first
         let mut y = 0;
-        for current_line in chat_lines.into_iter().rev() {
-            let mut x = 0;
+        for (current_line, alignment) in chat_lines.into_iter().rev() {
+            let mut x = get_line_offset(current_line.width() as u16, area.width, alignment);
             // Grapheme by grapheme
             for StyledGrapheme { symbol, style } in current_line
                 .0
@@ -204,6 +210,12 @@ impl<'a> Widget for Chat<'a> {
                 x += symbol.width() as u16;
                 if x >= text_area.width {
                     // Text does not fit
+                    log::error!(
+                        "Text does not fit into area {:?} with alignment: {:?}: {:?}",
+                        area,
+                        alignment,
+                        current_line
+                    );
                     break;
                 }
             }
