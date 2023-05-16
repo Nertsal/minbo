@@ -14,6 +14,7 @@ fn install_tracing() -> color_eyre::Result<()> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
     tracing_subscriber::registry()
+        .with(tui_logger::TuiTracingSubscriberLayer)
         .with(filter_layer)
         .with(fmt_layer)
         .with(ErrorLayer::default())
@@ -30,9 +31,10 @@ struct Args {
 #[tokio::main]
 #[instrument]
 async fn main() -> color_eyre::Result<()> {
-    // Setup error handling
+    // Setup logging and error handling
     install_tracing()?;
     color_eyre::install()?;
+    tui_logger::set_log_file("log.txt")?;
 
     // Parse CLI arguments
     let args: Args = clap::Parser::parse();
