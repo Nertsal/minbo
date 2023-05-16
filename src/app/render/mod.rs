@@ -1,14 +1,12 @@
+mod chat;
+
 use color_eyre::eyre::Context;
 use tui::style::Color;
 use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::*;
-use twitch_irc::message::PrivmsgMessage;
+use tui::text::Span;
 
 use super::model::*;
 use super::{Backend, Terminal};
-
-const NAME_LENGTH: usize = 25;
 
 type Frame<'a> = tui::Frame<'a, Backend>;
 
@@ -45,49 +43,6 @@ impl Render {
         let size = frame.size();
         let chat = self.render_chat(model);
         frame.render_widget(chat, size);
-    }
-
-    fn render_chat<'a>(&self, model: &'a Model) -> impl Widget + 'a {
-        let mut chat = Text::default();
-        for item in model
-            .chat
-            .iter()
-            .rev() // Reverse to show newest at the bottom
-            .map(|item| match item {
-                ChatItem::Message(msg) => self.render_message(model, msg),
-                ChatItem::Event(msg) => self.render_event(msg),
-            })
-        {
-            chat.extend(item);
-        }
-        Paragraph::new(chat)
-            .block(Block::default().title("Chat").borders(Borders::all()))
-            .wrap(Wrap { trim: false })
-    }
-
-    fn render_event<'a>(&self, msg: &'a str) -> Text<'a> {
-        let mut spans = vec![Span::raw(format!("{:>w$}: ", "Event", w = NAME_LENGTH))];
-        spans.extend(colorize_names(msg, &self.chatters));
-        let mut text = Text::from(Spans::from(spans));
-        text.patch_style(Style::default().fg(Color::Magenta).bg(Color::DarkGray));
-        text
-    }
-
-    fn render_message<'a>(&self, model: &Model, msg: &'a PrivmsgMessage) -> Text<'a> {
-        let color = model
-            .chatters
-            .get(&msg.sender.name)
-            .copied()
-            .unwrap_or(Color::LightBlue);
-        let mut spans = vec![
-            Span::styled(
-                format!("{:>w$}", msg.sender.name, w = NAME_LENGTH),
-                Style::default().fg(color),
-            ),
-            Span::raw(": "),
-        ];
-        spans.extend(colorize_names(&msg.message_text, &self.chatters));
-        Text::from(Spans::from(spans))
     }
 }
 

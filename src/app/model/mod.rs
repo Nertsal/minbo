@@ -13,6 +13,7 @@ pub struct Model {
     pub chatters: HashMap<String, Color>,
 }
 
+#[derive(Debug)]
 pub enum ChatItem {
     /// Boxed due to large size.
     Message(Box<PrivmsgMessage>),
