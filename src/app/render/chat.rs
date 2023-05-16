@@ -19,7 +19,6 @@ impl Render {
         let chat: Vec<_> = model
             .chat
             .iter()
-            .rev() // Reverse to show newest at the bottom
             .map(|item| match item {
                 ChatItem::Message(msg) => self.render_message(model, msg),
                 ChatItem::Event(msg) => self.render_event(msg),
@@ -118,22 +117,34 @@ impl<'a> Widget for Chat<'a> {
         let blank_symbol = " ".repeat(highlight_symbol.width());
 
         // TODO: calculate
-        let msg_max_width = 20;
+        let msg_max_width = 40;
         let event_max_width = 50;
 
         // Wrap all lines
         let mut chat_lines = Vec::new();
+        let mut message_id = 0;
         for item in &self.items {
             match item {
                 ChatItemRender::Msg { sender, msg } => {
+                    // Highlight prefix
+                    let prefix = if Some(message_id) == self.selected_message {
+                        highlight_symbol
+                    } else {
+                        &blank_symbol
+                    };
+                    let prefix = Span::raw(prefix);
+
                     // Sender prefix
                     let sender_width = sender.width();
-                    let mut sender_line = vec![Span::raw(" ".repeat(NAME_LENGTH - sender_width))];
+                    let mut sender_line = vec![
+                        prefix.clone(),
+                        Span::raw(" ".repeat(NAME_LENGTH - sender_width)),
+                    ];
                     sender_line.extend(sender.0.clone());
                     sender_line.push(Span::raw(": "));
 
                     // Blank prefix
-                    let blank_line = vec![Span::raw(" ".repeat(NAME_LENGTH + 2))];
+                    let blank_line = vec![prefix, Span::raw(" ".repeat(NAME_LENGTH + 2))];
 
                     // Wrap message lines
                     let mut lines = wrap_spans(msg, msg_max_width);
@@ -159,7 +170,8 @@ impl<'a> Widget for Chat<'a> {
                     }
 
                     // Reverse lines since they are rendered in reverse
-                    chat_lines.extend(lines.into_iter().rev());
+                    chat_lines.extend(lines);
+                    message_id += 1;
                 }
                 ChatItemRender::Event { text } => {
                     for line in &text.lines {
@@ -170,9 +182,9 @@ impl<'a> Widget for Chat<'a> {
             }
         }
 
-        // Render line by line
+        // Render line by line in reverse order to show newest first
         let mut y = 0;
-        for current_line in chat_lines {
+        for current_line in chat_lines.into_iter().rev() {
             let mut x = 0;
             // Grapheme by grapheme
             for StyledGrapheme { symbol, style } in current_line
@@ -190,6 +202,10 @@ impl<'a> Widget for Chat<'a> {
                     })
                     .set_style(style);
                 x += symbol.width() as u16;
+                if x >= text_area.width {
+                    // Text does not fit
+                    break;
+                }
             }
 
             y += 1;
