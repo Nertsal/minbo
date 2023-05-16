@@ -118,20 +118,53 @@ impl<'a> Widget for Chat<'a> {
         let blank_symbol = " ".repeat(highlight_symbol.width());
 
         // TODO: calculate
-        let msg_max_width = 40;
+        let msg_max_width = 20;
         let event_max_width = 50;
 
         // Wrap all lines
-        let mut lines = Vec::new();
+        let mut chat_lines = Vec::new();
         for item in &self.items {
             match item {
                 ChatItemRender::Msg { sender, msg } => {
-                    // TODO: sender
-                    lines.extend(wrap_spans(msg, msg_max_width));
+                    // Sender prefix
+                    let sender_width = sender.width();
+                    let mut sender_line = vec![Span::raw(" ".repeat(NAME_LENGTH - sender_width))];
+                    sender_line.extend(sender.0.clone());
+                    sender_line.push(Span::raw(": "));
+
+                    // Blank prefix
+                    let blank_line = vec![Span::raw(" ".repeat(NAME_LENGTH + 2))];
+
+                    // Wrap message lines
+                    let mut lines = wrap_spans(msg, msg_max_width);
+
+                    // Prefix the first line with sender
+                    match lines.get_mut(0) {
+                        Some(line) => {
+                            let l = std::mem::take(line);
+                            sender_line.extend(l.0);
+                            *line = Spans::from(sender_line);
+                        }
+                        None => {
+                            lines.push(Spans::from(sender_line));
+                        }
+                    }
+
+                    // Prefix other lines with space
+                    for line in lines.iter_mut().skip(1) {
+                        let l = std::mem::take(line);
+                        let mut blank_line = blank_line.clone();
+                        blank_line.extend(l.0);
+                        *line = Spans::from(blank_line);
+                    }
+
+                    // Reverse lines since they are rendered in reverse
+                    chat_lines.extend(lines.into_iter().rev());
                 }
                 ChatItemRender::Event { text } => {
                     for line in &text.lines {
-                        lines.extend(wrap_spans(line, event_max_width));
+                        // Wrap each line in the message
+                        chat_lines.extend(wrap_spans(line, event_max_width));
                     }
                 }
             }
@@ -139,7 +172,7 @@ impl<'a> Widget for Chat<'a> {
 
         // Render line by line
         let mut y = 0;
-        for current_line in lines {
+        for current_line in chat_lines {
             let mut x = 0;
             // Grapheme by grapheme
             for StyledGrapheme { symbol, style } in current_line
@@ -168,6 +201,53 @@ impl<'a> Widget for Chat<'a> {
     }
 }
 
-fn wrap_spans<'a>(spans: &Spans<'a>, max_width: u16) -> Vec<Spans<'a>> {
-    vec![spans.clone()]
+fn wrap_spans<'a>(spans: &'a Spans<'a>, max_width: usize) -> Vec<Spans<'a>> {
+    if max_width == 0 {
+        panic!("No space available");
+    }
+
+    let mut lines = Vec::new();
+    let mut current_line = Vec::new();
+    let mut width_left = max_width;
+
+    macro_rules! new_line {
+        () => {{
+            if !current_line.is_empty() {
+                let line = ::std::mem::take(&mut current_line);
+                lines.push(::tui::text::Spans::from(line));
+            }
+            width_left = max_width;
+        }};
+    }
+
+    macro_rules! push_span {
+        ($span:expr) => {{
+            let width = $span.width();
+            width_left = width_left.saturating_sub(width);
+            current_line.push($span);
+        }};
+    }
+
+    for span in &spans.0 {
+        let style = span.style;
+        // Go over words
+        for word in span.content.split_inclusive(char::is_whitespace) {
+            let width = word.width();
+            if current_line.is_empty() || width <= width_left {
+                // First word or enough space
+                push_span!(Span::styled(word, style));
+                continue;
+            }
+
+            // Not enough space -> new line
+            new_line!();
+            push_span!(Span::styled(word, style));
+        }
+    }
+
+    if !current_line.is_empty() {
+        lines.push(::tui::text::Spans::from(current_line));
+    }
+
+    lines
 }
