@@ -210,12 +210,12 @@ impl<'a> Widget for Chat<'a> {
                 x += symbol.width() as u16;
                 if x >= text_area.width {
                     // Text does not fit
-                    log::error!(
-                        "Text does not fit into area {:?} with alignment: {:?}: {:?}",
-                        area,
-                        alignment,
-                        current_line
-                    );
+                    // log::error!(
+                    //     "Text does not fit into area {:?} with alignment: {:?}:\n^-text: {:?}",
+                    //     area,
+                    //     alignment,
+                    //     current_line
+                    // );
                     break;
                 }
             }

@@ -76,6 +76,7 @@ impl App {
         //     .await
         //     .wrap_err("when sending a message")?;
 
+        self.terminal.clear()?;
         self.render
             .draw(&mut self.terminal, &self.model)
             .wrap_err("when rendering the model")?;

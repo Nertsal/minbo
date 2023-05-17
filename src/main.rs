@@ -14,10 +14,10 @@ fn install_tracing() -> color_eyre::Result<()> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info"))?;
     tracing_subscriber::registry()
-        .with(tui_logger::TuiTracingSubscriberLayer)
         .with(filter_layer)
         .with(fmt_layer)
         .with(ErrorLayer::default())
+        .with(tui_logger::TuiTracingSubscriberLayer)
         .init();
     Ok(())
 }
@@ -32,9 +32,9 @@ struct Args {
 #[instrument]
 async fn main() -> color_eyre::Result<()> {
     // Setup logging and error handling
+    tui_logger::set_log_file("log.txt")?;
     install_tracing()?;
     color_eyre::install()?;
-    tui_logger::set_log_file("log.txt")?;
 
     // Parse CLI arguments
     let args: Args = clap::Parser::parse();
