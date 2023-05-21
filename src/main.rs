@@ -43,7 +43,9 @@ async fn main() -> color_eyre::Result<()> {
     let secrets = secret::Secrets::load().wrap_err("when loading secrets")?;
 
     // Configure the client
-    let client = client::TwitchClient::new(&secrets).wrap_err("when setting up client")?;
+    let client = client::TwitchClient::new(&secrets)
+        .await
+        .wrap_err("when setting up client")?;
 
     // Start the app
     app::App::new(client, args.channel_login)

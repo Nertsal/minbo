@@ -3,16 +3,13 @@ use serde::Deserialize;
 use tracing::instrument;
 
 pub struct Secrets {
-    // pub path: std::path::PathBuf,
     pub client: SecretClient,
 }
 
 #[derive(Deserialize)]
 pub struct SecretClient {
-    pub login_name: String,
-    pub oauth_token: String,
-    // pub client_id: String,
-    // pub client_secret: String,
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 impl Secrets {

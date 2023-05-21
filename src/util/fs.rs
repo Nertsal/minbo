@@ -15,3 +15,13 @@ pub fn read_toml<T: serde::de::DeserializeOwned>(
     let result = toml::from_str(&content)?;
     Ok(result)
 }
+
+/// Write some content in toml format to the file.
+pub fn write_toml<T: serde::Serialize>(
+    content: &T,
+    path: impl AsRef<std::path::Path>,
+) -> color_eyre::Result<()> {
+    let content = toml::to_string_pretty(content).wrap_err("when serializing to toml")?;
+    std::fs::write(path, content.as_bytes()).wrap_err("when writing to file")?;
+    Ok(())
+}
