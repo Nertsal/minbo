@@ -24,7 +24,8 @@ impl Render {
                 ChatItem::Event(msg) => self.render_event(msg),
             })
             .collect();
-        Chat::new(chat, Some(0)).block(Block::default().title("Chat").borders(Borders::all()))
+        Chat::new(chat, model.selected_item)
+            .block(Block::default().title("Chat").borders(Borders::all()))
     }
 
     fn render_event<'a>(&self, msg: &'a str) -> ChatItemRender<'a> {
@@ -123,19 +124,18 @@ impl<'a> Widget for Chat<'a> {
 
         // Wrap all lines
         let mut chat_lines = Vec::new();
-        let mut message_id = 0;
         // TODO: ignore old messages/cache wrapping
-        for item in &self.items {
+        for (item_id, item) in self.items.iter().enumerate() {
+            // Highlight prefix
+            let prefix = if Some(item_id) == self.selected_message {
+                highlight_symbol
+            } else {
+                &blank_symbol
+            };
+            let prefix = Span::raw(prefix);
+
             match item {
                 ChatItemRender::Msg { sender, msg } => {
-                    // Highlight prefix
-                    let prefix = if Some(message_id) == self.selected_message {
-                        highlight_symbol
-                    } else {
-                        &blank_symbol
-                    };
-                    let prefix = Span::raw(prefix);
-
                     // Sender prefix
                     let sender_width = sender.width();
                     let mut sender_line = vec![
@@ -173,7 +173,6 @@ impl<'a> Widget for Chat<'a> {
 
                     // Reverse lines since they are rendered in reverse
                     chat_lines.extend(lines.into_iter().map(|line| (line, Alignment::Left)));
-                    message_id += 1;
                 }
                 ChatItemRender::Event { text } => {
                     for line in &text.lines {

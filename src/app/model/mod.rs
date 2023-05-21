@@ -11,6 +11,7 @@ pub struct Model {
     pub running: bool,
     pub chat: Vec<ChatItem>,
     pub chatters: HashMap<String, Color>,
+    pub selected_item: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ impl Model {
             running: true,
             chat: vec![],
             chatters: HashMap::new(),
+            selected_item: None,
         }
     }
 
@@ -61,17 +63,31 @@ impl Model {
     }
 
     fn handle_key(&mut self, event: KeyEvent) {
-        match event.code {
-            KeyCode::Char(c) => self.handle_char(c, event.modifiers),
-            _ => {}
+        if let KeyCode::Char(c) = event.code {
+            self.handle_char(c, event.modifiers)
         }
     }
 
     fn handle_char(&mut self, c: char, modifiers: KeyModifiers) {
         match c {
             'c' if modifiers.contains(KeyModifiers::CONTROL) => {
-                // Ctrl+C
                 self.running = false;
+            }
+            'j' => {
+                let max = self.chat.len().max(1) - 1;
+                self.selected_item =
+                    Some(self.selected_item.map(|i| (i + 1).min(max)).unwrap_or(max));
+            }
+            'k' => {
+                let max = self.chat.len().max(1) - 1;
+                self.selected_item = Some(
+                    self.selected_item
+                        .map(|i| i.saturating_sub(1))
+                        .unwrap_or(max),
+                );
+            }
+            'G' => {
+                self.selected_item = None;
             }
             _ => {}
         }
