@@ -3,9 +3,13 @@ mod chat;
 use super::{Backend, Terminal};
 
 use color_eyre::eyre::Context;
-use tui::style::Color;
-use tui::style::Style;
-use tui::text::Span;
+use tui::{
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Style},
+    text::Span,
+    widgets::{Block, Borders},
+};
+use tui_logger::TuiLoggerWidget;
 
 use crate::model::*;
 
@@ -41,9 +45,33 @@ impl Render {
 
     /// Draw the whole frame.
     fn draw_frame(&self, model: &Model, frame: &mut Frame) {
-        let size = frame.size();
+        // Layout
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(30), Constraint::Min(10)].as_ref())
+            .split(frame.size());
+
         let chat = self.render_chat(model);
-        frame.render_widget(chat, size);
+        frame.render_widget(chat, chunks[0]);
+
+        let logs = self.render_logs();
+        frame.render_widget(logs, chunks[1]);
+    }
+
+    fn render_logs(&self) -> TuiLoggerWidget {
+        TuiLoggerWidget::default()
+            .style_error(Style::default().fg(Color::Red))
+            .style_debug(Style::default().fg(Color::Green))
+            .style_warn(Style::default().fg(Color::Yellow))
+            .style_trace(Style::default().fg(Color::Gray))
+            .style_info(Style::default().fg(Color::Blue))
+            .block(
+                Block::default()
+                    .title("Logs")
+                    .border_style(Style::default().fg(Color::White).bg(Color::Black))
+                    .borders(Borders::ALL),
+            )
+            .style(Style::default().fg(Color::White).bg(Color::Black))
     }
 }
 
