@@ -5,7 +5,7 @@ use crate::config::SimpleCommands;
 use super::action::Action;
 use super::*;
 
-use minmands::{command, CommandBuilder, CommandNode, ParseError};
+use minmands::{CommandBuilder, CommandNode, ParseError};
 
 #[derive(Debug, Clone)]
 pub struct CommandTree {
@@ -32,8 +32,12 @@ impl CommandTree {
 pub enum CommandAction {
     /// Echo the message.
     Say(String),
-    /// Says hello to $0.
+    /// Say hello to $0.
     Hello,
+    /// Say bye to $0.
+    Bye,
+    /// Say good night to $0.
+    GoodNight,
 }
 
 #[derive(Debug, Clone)]
@@ -116,7 +120,20 @@ impl CommandAction {
             CommandAction::Hello => {
                 verify_args(&arguments, 1, true)?;
                 let name = arguments.pop().unwrap();
-                Ok(Action::Hello { name })
+                let msg = format!("Hi, {name} ^^");
+                Ok(Action::Say(msg))
+            }
+            CommandAction::Bye => {
+                verify_args(&arguments, 1, true)?;
+                let name = arguments.pop().unwrap();
+                let msg = format!("cya, {name}!");
+                Ok(Action::Say(msg))
+            }
+            CommandAction::GoodNight => {
+                verify_args(&arguments, 1, true)?;
+                let name = arguments.pop().unwrap();
+                let msg = format!("Good night, {name} ^^");
+                Ok(Action::Say(msg))
             }
         }
     }
@@ -171,14 +188,25 @@ impl Model {
                     .finalize(true, CommandAction::Say(response.to_owned())),
             )
         });
-        let hardcoded = [CommandTree::new(
-            30.0, // 30 sec cooldown
-            command!(
-                "!hello";
-                word;
-                true, CommandAction::Hello
-            ),
-        )];
-        simple.chain(hardcoded).collect()
+
+        let greetings = [
+            ("!hello", CommandAction::Hello),
+            ("!bye", CommandAction::Bye),
+            ("!gn", CommandAction::GoodNight),
+        ]
+        .into_iter()
+        .map(|(command, action)| {
+            CommandTree::new(
+                30.0,
+                CommandBuilder::new()
+                    .literal([command])
+                    .word()
+                    .finalize(true, action),
+            )
+        });
+
+        let hardcoded = [];
+
+        simple.chain(greetings).chain(hardcoded).collect()
     }
 }

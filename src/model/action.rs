@@ -4,8 +4,6 @@ use super::*;
 pub enum Action {
     /// Echo the message.
     Say(String),
-    /// Say hello to `name`.
-    Hello { name: String },
 }
 
 impl Model {
@@ -13,10 +11,6 @@ impl Model {
         log::debug!("Executing action: {:?}", action);
         match action {
             Action::Say(message) => Ok(vec![AppAction::Say { message }]),
-            Action::Hello { name } => {
-                let message = format!("Hi, {name} ^^");
-                Ok(vec![AppAction::Say { message }])
-            }
         }
     }
 }
