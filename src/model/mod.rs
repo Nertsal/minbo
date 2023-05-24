@@ -12,7 +12,7 @@ use crate::app::AppAction;
 use crate::client::TwitchMessage;
 use crate::config::Config;
 
-use self::commands::Commands;
+use self::commands::{AuthorityLevel, CommandCall, Commands};
 
 pub struct Model {
     /// Set to false to shutdown gracefully.
@@ -59,14 +59,23 @@ impl Model {
         log::debug!("Twitch IRC: {:?}", message);
         match message {
             TwitchMessage::Privmsg(message) => {
+                // Remember the chatter
                 if let Some(color) = message.name_color {
                     let color = Color::Rgb(color.r, color.g, color.b);
                     self.chatters.insert(message.sender.name.clone(), color);
                 }
-                let text = message.message_text.clone();
+
+                // Check command
+                let call = CommandCall {
+                    message: &message.message_text,
+                    authority: AuthorityLevel::from_badges(&message.badges),
+                };
+                let actions = self
+                    .handle_command_call(call)
+                    .wrap_err("when handling a command call")?;
+
                 self.chat.push(ChatItem::Message(Box::new(message)));
-                self.handle_command_call(&text)
-                    .wrap_err("when handling a command call")
+                Ok(actions)
             }
             TwitchMessage::UserNotice(notice) => {
                 self.chat.push(ChatItem::Event(notice.system_message));

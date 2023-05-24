@@ -28,6 +28,7 @@ pub struct App {
     config: Config,
 }
 
+#[derive(Debug, Clone)]
 pub enum AppAction {
     /// Reload the configuration file.
     ReloadConfig,
@@ -162,6 +163,7 @@ impl App {
     }
 
     async fn execute(&mut self, action: AppAction) -> color_eyre::Result<()> {
+        log::debug!("Executing action: {:?}", action);
         match action {
             AppAction::ReloadConfig => {
                 let config = Config::load(&self.config.path).wrap_err("when reloading config")?;
