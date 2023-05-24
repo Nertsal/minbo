@@ -11,6 +11,8 @@ use tui::backend::CrosstermBackend;
 use crate::client::TwitchClient;
 use crate::model::Model;
 
+const TARGET_DELTA_TIME: f64 = 1.0 / 5.0;
+
 type Backend = CrosstermBackend<std::io::Stdout>;
 type Terminal = tui::Terminal<Backend>;
 
@@ -70,6 +72,8 @@ impl App {
     }
 
     pub async fn run(mut self) -> color_eyre::Result<()> {
+        let mut time = tokio::time::Instant::now();
+
         self.client
             .irc
             .join(self.channel_login.clone())
@@ -88,9 +92,17 @@ impl App {
         // Event loop
         while self.model.running {
             let mut actions = Vec::new();
+            let mut redraw = false; // TODO: smarter redraw
+
+            // Update
+            let delta_time = time.elapsed().as_secs_f64();
+            time = tokio::time::Instant::now();
+            self.update(delta_time)
+                .await
+                .wrap_err("when updating in event loop")?;
 
             // Twitch IRC
-            if let Some(message) = self
+            while let Some(message) = self
                 .client
                 .try_recv()
                 .wrap_err("when receiving a message")?
@@ -98,31 +110,41 @@ impl App {
                 actions.extend(
                     self.model
                         .handle_twitch_event(message)
-                        .wrap_err("when processing a message")?,
+                        .wrap_err("when handling a twitch event")?,
                 );
+                redraw = true;
             }
 
             // Terminal
-            if crossterm::event::poll(std::time::Duration::from_secs(0))
+            while crossterm::event::poll(std::time::Duration::from_secs(0))
                 .wrap_err("when polling a terminal event")?
             {
                 let event = crossterm::event::read().wrap_err("when reading a terminal event")?;
-                actions.extend(self.model.handle_terminal_event(event)?);
+                actions.extend(
+                    self.model
+                        .handle_terminal_event(event)
+                        .wrap_err("when handling a terminal event")?,
+                );
+                redraw = true;
             }
 
             // Actions
             for action in actions {
-                self.execute(action).await?;
+                self.execute(action)
+                    .await
+                    .wrap_err("when executing an action")?;
             }
 
-            // TODO: lazy
             // Render
-            self.render
-                .draw(&mut self.terminal, &self.model)
-                .wrap_err("when rendering the model")?;
+            if redraw {
+                self.render
+                    .draw(&mut self.terminal, &self.model)
+                    .wrap_err("when rendering the model")?;
+            }
 
-            // TODO: Proper fps control
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+            let delta_time = time.elapsed().as_secs_f64();
+            let sleep_time = (TARGET_DELTA_TIME - delta_time).max(0.0);
+            tokio::time::sleep(tokio::time::Duration::from_secs_f64(sleep_time)).await;
         }
 
         self.clean_up().wrap_err("when cleaning up")?;
@@ -136,14 +158,24 @@ impl App {
                 self.client
                     .irc
                     .say(self.channel_login.clone(), message)
-                    .await?;
+                    .await
+                    .wrap_err("when sending a message to twitch")?;
             }
         }
         Ok(())
     }
 
-    // /// Update the app over time.
-    // fn update(&mut self, _delta_time: f32) -> color_eyre::Result<()> {
-    //     Ok(())
-    // }
+    /// Update the app over time.
+    async fn update(&mut self, delta_time: f64) -> color_eyre::Result<()> {
+        let actions = self
+            .model
+            .update(delta_time)
+            .wrap_err("when updating the model")?;
+        for action in actions {
+            self.execute(action)
+                .await
+                .wrap_err("when executing an action")?;
+        }
+        Ok(())
+    }
 }

@@ -39,6 +39,13 @@ impl Model {
         }
     }
 
+    pub fn update(&mut self, delta_time: f64) -> color_eyre::Result<Vec<AppAction>> {
+        for command in &mut self.commands {
+            command.update(delta_time);
+        }
+        Ok(vec![])
+    }
+
     /// Process an event from Twitch.
     pub fn handle_twitch_event(
         &mut self,

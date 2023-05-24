@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use super::action::Action;
 use super::*;
 
@@ -6,6 +8,20 @@ use minmands::{command, CommandNode, ParseError};
 #[derive(Debug, Clone)]
 pub struct CommandTree {
     root: CommandNode<CommandAction>,
+    /// Command cooldown in seconds.
+    cooldown: f64,
+    /// Time until cooldown expires for individual argument variants.
+    cooldown_timers: BTreeMap<Vec<String>, f64>,
+}
+
+impl CommandTree {
+    /// Update cooldown.
+    pub fn update(&mut self, delta_time: f64) {
+        for time in self.cooldown_timers.values_mut() {
+            *time -= delta_time;
+        }
+        self.cooldown_timers.retain(|_, time| *time > 0.0);
+    }
 }
 
 /// Command callable actions that might require extra arguments.
@@ -34,9 +50,9 @@ impl From<ArgsError> for CommandParseError {
     }
 }
 
-/// Arguments mismatch between parser and executor.
 #[derive(Debug, Clone)]
 pub enum ArgsError {
+    OnCooldown,
     TooMany,
     NotEnough,
 }
@@ -46,6 +62,7 @@ impl std::error::Error for ArgsError {}
 impl std::fmt::Display for ArgsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ArgsError::OnCooldown => write!(f, "Command is on cooldown"),
             ArgsError::TooMany => write!(f, "Too many arguments"),
             ArgsError::NotEnough => write!(f, "Not enough arguments"),
         }
@@ -53,12 +70,21 @@ impl std::fmt::Display for ArgsError {
 }
 
 impl CommandTree {
-    pub fn new(root: CommandNode<CommandAction>) -> Self {
-        Self { root }
+    pub fn new(cooldown: f64, root: CommandNode<CommandAction>) -> Self {
+        Self {
+            root,
+            cooldown,
+            cooldown_timers: BTreeMap::new(),
+        }
     }
 
-    pub fn parse(&self, command: &str) -> Result<Action, CommandParseError> {
+    pub fn parse(&mut self, command: &str) -> Result<Action, CommandParseError> {
         let parsed = self.root.parse(command)?;
+        if self.cooldown_timers.contains_key(&parsed.arguments) {
+            return Err(CommandParseError::Args(ArgsError::OnCooldown));
+        }
+        self.cooldown_timers
+            .insert(parsed.arguments.clone(), self.cooldown);
         let action = parsed.value.into_action(parsed.arguments)?;
         Ok(action)
     }
@@ -105,7 +131,8 @@ impl Model {
     pub fn handle_command_call(&mut self, call: &str) -> color_eyre::Result<Vec<AppAction>> {
         // Parse commands
         let mut actions = Vec::new();
-        for command in &self.commands {
+        for command in &mut self.commands {
+            // Cooldown is checked and updated inside `parse`
             match command.parse(call) {
                 Ok(action) => actions.push(action),
                 Err(CommandParseError::Parse(_)) => continue, // Did not parse
@@ -122,7 +149,6 @@ impl Model {
             }
         }
 
-        // TODO: cooldown
         let mut app_actions = Vec::new();
         for action in actions {
             let actions = self.execute(action)?;
@@ -132,10 +158,13 @@ impl Model {
     }
 
     pub fn init_commands() -> Vec<CommandTree> {
-        vec![CommandTree::new(command!(
-            "!hello";
-            word;
-            true, CommandAction::Hello
-        ))]
+        vec![CommandTree::new(
+            30.0, // 30 sec cooldown
+            command!(
+                "!hello";
+                word;
+                true, CommandAction::Hello
+            ),
+        )]
     }
 }
