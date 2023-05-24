@@ -1,4 +1,6 @@
+/.direnv/
 /target
-/secrets
 Cargo.lock
+
 /log.txt
+/secrets
