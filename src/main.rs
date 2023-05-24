@@ -3,6 +3,7 @@ use tracing::instrument;
 
 mod app;
 mod client;
+mod config;
 mod model;
 mod secret;
 mod util;
@@ -27,6 +28,10 @@ fn install_tracing() -> color_eyre::Result<()> {
 struct Args {
     #[clap(help = "Channel name to connect to")]
     channel_login: String,
+    #[clap(long, default_value = "config", help = "Path to config")]
+    config: String,
+    #[clap(long, default_value = "secrets", help = "Path to secrets")]
+    secrets: String,
 }
 
 #[tokio::main]
@@ -43,7 +48,10 @@ async fn main() -> color_eyre::Result<()> {
     let args: Args = clap::Parser::parse();
 
     // Load secrets
-    let secrets = secret::Secrets::load().wrap_err("when loading secrets")?;
+    let secrets = secret::Secrets::load(&args.secrets).wrap_err("when loading secrets")?;
+
+    // Load config
+    let config = config::Config::load(&args.config).wrap_err("when loading config")?;
 
     // Configure the client
     let client = client::TwitchClient::new(&secrets)

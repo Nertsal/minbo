@@ -1,6 +1,5 @@
 use color_eyre::eyre::Context;
 use serde::Deserialize;
-use tracing::instrument;
 
 pub struct Secrets {
     pub client: SecretClient,
@@ -13,14 +12,8 @@ pub struct SecretClient {
 }
 
 impl Secrets {
-    /// Loads the secrets from the default secrets folder.
-    #[instrument]
-    pub fn load() -> color_eyre::Result<Self> {
-        Self::load_from("secrets")
-    }
-
     /// Loads the secrets from the given secrets folder.
-    pub fn load_from(path: impl AsRef<std::path::Path>) -> color_eyre::Result<Self> {
+    pub fn load(path: impl AsRef<std::path::Path>) -> color_eyre::Result<Self> {
         let path = path.as_ref().to_owned();
 
         let client = crate::util::fs::read_toml(path.join("login.toml"))
