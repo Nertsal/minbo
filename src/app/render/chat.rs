@@ -8,7 +8,7 @@ use tui::{
 use twitch_irc::message::PrivmsgMessage;
 use unicode_width::UnicodeWidthStr;
 
-use crate::app::model::{ChatItem, Model};
+use crate::model::{ChatItem, Model};
 
 use super::Render;
 

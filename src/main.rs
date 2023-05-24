@@ -3,6 +3,7 @@ use tracing::instrument;
 
 mod app;
 mod client;
+mod model;
 mod secret;
 mod util;
 

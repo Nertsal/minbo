@@ -1,7 +1,5 @@
-mod model;
 mod render;
 
-use self::model::Model;
 use self::render::Render;
 
 use color_eyre::eyre::Context;
@@ -11,6 +9,7 @@ use crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternate
 use tui::backend::CrosstermBackend;
 
 use crate::client::TwitchClient;
+use crate::model::Model;
 
 type Backend = CrosstermBackend<std::io::Stdout>;
 type Terminal = tui::Terminal<Backend>;
@@ -23,6 +22,11 @@ pub struct App {
     render: Render,
     /// Name of the channel to connect to.
     channel_login: String,
+}
+
+pub enum AppAction {
+    /// Send message to twitch chat.
+    Say { message: String },
 }
 
 impl App {
@@ -83,15 +87,19 @@ impl App {
 
         // Event loop
         while self.model.running {
+            let mut actions = Vec::new();
+
             // Twitch IRC
             if let Some(message) = self
                 .client
                 .try_recv()
                 .wrap_err("when receiving a message")?
             {
-                self.model
-                    .handle_twitch_event(message)
-                    .wrap_err("when processing a message")?;
+                actions.extend(
+                    self.model
+                        .handle_twitch_event(message)
+                        .wrap_err("when processing a message")?,
+                );
             }
 
             // Terminal
@@ -99,7 +107,12 @@ impl App {
                 .wrap_err("when polling a terminal event")?
             {
                 let event = crossterm::event::read().wrap_err("when reading a terminal event")?;
-                self.model.handle_terminal_event(event);
+                actions.extend(self.model.handle_terminal_event(event)?);
+            }
+
+            // Actions
+            for action in actions {
+                self.execute(action).await?;
             }
 
             // TODO: lazy
@@ -114,6 +127,18 @@ impl App {
 
         self.clean_up().wrap_err("when cleaning up")?;
 
+        Ok(())
+    }
+
+    async fn execute(&mut self, action: AppAction) -> color_eyre::Result<()> {
+        match action {
+            AppAction::Say { message } => {
+                self.client
+                    .irc
+                    .say(self.channel_login.clone(), message)
+                    .await?;
+            }
+        }
         Ok(())
     }
 

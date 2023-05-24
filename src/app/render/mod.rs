@@ -1,12 +1,13 @@
 mod chat;
 
+use super::{Backend, Terminal};
+
 use color_eyre::eyre::Context;
 use tui::style::Color;
 use tui::style::Style;
 use tui::text::Span;
 
-use super::model::*;
-use super::{Backend, Terminal};
+use crate::model::*;
 
 type Frame<'a> = tui::Frame<'a, Backend>;
 
