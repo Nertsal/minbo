@@ -5,7 +5,15 @@ use crate::config::SimpleCommands;
 use super::action::Action;
 use super::*;
 
-use minmands::{CommandBuilder, CommandNode, ParseError};
+use minmands::{command, CommandBuilder, CommandNode, ParseError};
+
+// Note: Make sure to add new field to [Commands::iter_mut] method.
+pub struct Commands {
+    /// Specified in the config and updated on config reload.
+    configured: Vec<CommandTree>,
+    /// Hardcoded commands.
+    hardcoded: Vec<CommandTree>,
+}
 
 #[derive(Debug, Clone)]
 pub struct CommandTree {
@@ -30,6 +38,8 @@ impl CommandTree {
 /// Arguments are refered to in the docs like `$0` (for the first argument).
 #[derive(Debug, Clone)]
 pub enum CommandAction {
+    /// Reload the configuration file.
+    ReloadConfig,
     /// Echo the message.
     Say(String),
     /// Say hello to $0.
@@ -116,6 +126,7 @@ impl CommandTree {
 impl CommandAction {
     pub fn into_action(self, mut arguments: Vec<String>) -> Result<Action, ArgsError> {
         match self {
+            CommandAction::ReloadConfig => Ok(Action::ReloadConfig),
             CommandAction::Say(msg) => Ok(Action::Say(msg)),
             CommandAction::Hello => {
                 verify_args(&arguments, 1, true)?;
@@ -153,7 +164,7 @@ impl Model {
     pub fn handle_command_call(&mut self, call: &str) -> color_eyre::Result<Vec<AppAction>> {
         // Parse commands
         let mut actions = Vec::new();
-        for command in &mut self.commands {
+        for command in self.commands.iter_mut() {
             // Cooldown is checked and updated inside `parse`
             match command.parse(call) {
                 Ok(action) => actions.push(action),
@@ -178,16 +189,44 @@ impl Model {
         }
         Ok(app_actions)
     }
+}
 
-    pub fn init_commands(commands: &SimpleCommands) -> Vec<CommandTree> {
-        let simple = commands.commands.iter().map(|(command, response)| {
-            CommandTree::new(
-                commands.cooldown,
-                CommandBuilder::new()
-                    .literal([format!("!{}", command)])
-                    .finalize(true, CommandAction::Say(response.to_owned())),
-            )
-        });
+impl Commands {
+    /// Update cooldown.
+    pub fn update(&mut self, delta_time: f64) {
+        for command in self.iter_mut() {
+            command.update(delta_time);
+        }
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut CommandTree> {
+        iter_tools::chain![&mut self.configured, &mut self.hardcoded]
+    }
+
+    /// Reloads `configured` command list.
+    pub fn reload(&mut self, config: &SimpleCommands) {
+        self.configured = config
+            .commands
+            .iter()
+            .map(|(command, response)| {
+                CommandTree::new(
+                    config.cooldown,
+                    CommandBuilder::new()
+                        .literal([format!("!{}", command)])
+                        .finalize(true, CommandAction::Say(response.to_owned())),
+                )
+            })
+            .collect();
+    }
+
+    pub fn init(config: &SimpleCommands) -> Self {
+        let system = [CommandTree::new(
+            0.0,
+            command!(
+                "!reload";
+                true, CommandAction::ReloadConfig
+            ),
+        )];
 
         let greetings = [
             ("!hello", CommandAction::Hello),
@@ -205,8 +244,13 @@ impl Model {
             )
         });
 
-        let hardcoded = [];
+        let hardcoded = iter_tools::chain![system, greetings];
 
-        simple.chain(greetings).chain(hardcoded).collect()
+        let mut commands = Self {
+            configured: vec![], // Set on reload
+            hardcoded: hardcoded.collect(),
+        };
+        commands.reload(config);
+        commands
     }
 }

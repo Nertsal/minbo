@@ -27,6 +27,7 @@ tui = { version = "0.20.1", package = "ratatui" }
 tui-logger = { version = "0.9.1", default-features = false, features = ["ratatui-support", "tracing-support"] }
 twitch-irc = { version = "5.0.0", features = ["refreshing-token-native-tls"] }
 unicode-width = "0.1.10"
+iter_tools = "0.1.4"
 
 # Always compile dependencies with high optimizations
 [profile.dev.package."*"]

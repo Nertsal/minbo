@@ -1,10 +1,12 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use color_eyre::eyre::Context;
 use serde::Deserialize;
 
 #[derive(Default)]
 pub struct Config {
+    /// Path to the config directory.
+    pub path: PathBuf,
     pub commands: SimpleCommands,
 }
 
@@ -32,7 +34,7 @@ impl Config {
         let commands =
             read_or_default(path.join("commands.toml")).wrap_err("when loading client secret")?;
 
-        Ok(Self { commands })
+        Ok(Self { path, commands })
     }
 }
 

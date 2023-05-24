@@ -1,8 +1,6 @@
 mod action;
 mod commands;
 
-use commands::CommandTree;
-
 use std::collections::HashMap;
 
 use color_eyre::eyre::Context;
@@ -14,13 +12,15 @@ use crate::app::AppAction;
 use crate::client::TwitchMessage;
 use crate::config::Config;
 
+use self::commands::Commands;
+
 pub struct Model {
     /// Set to false to shutdown gracefully.
     pub running: bool,
     pub chat: Vec<ChatItem>,
     pub chatters: HashMap<String, Color>,
     pub selected_item: Option<usize>,
-    pub commands: Vec<CommandTree>,
+    pub commands: Commands,
 }
 
 #[derive(Debug)]
@@ -31,20 +31,23 @@ pub enum ChatItem {
 }
 
 impl Model {
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             running: true,
             chat: vec![],
             chatters: HashMap::new(),
             selected_item: None,
-            commands: Self::init_commands(&config.commands),
+            commands: Commands::init(&config.commands),
         }
     }
 
+    /// Reload configuration.
+    pub fn reload(&mut self, config: &Config) {
+        self.commands.reload(&config.commands);
+    }
+
     pub fn update(&mut self, delta_time: f64) -> color_eyre::Result<Vec<AppAction>> {
-        for command in &mut self.commands {
-            command.update(delta_time);
-        }
+        self.commands.update(delta_time);
         Ok(vec![])
     }
 

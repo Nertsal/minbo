@@ -25,9 +25,12 @@ pub struct App {
     render: Render,
     /// Name of the channel to connect to.
     channel_login: String,
+    config: Config,
 }
 
 pub enum AppAction {
+    /// Reload the configuration file.
+    ReloadConfig,
     /// Send message to twitch chat.
     Say { message: String },
 }
@@ -41,9 +44,10 @@ impl App {
         Ok(Self {
             client,
             terminal: Self::init_terminal().wrap_err("when setting up a terminal")?,
-            model: Model::new(config),
+            model: Model::new(&config),
             render: Render::new(),
             channel_login,
+            config,
         })
     }
 
@@ -159,6 +163,11 @@ impl App {
 
     async fn execute(&mut self, action: AppAction) -> color_eyre::Result<()> {
         match action {
+            AppAction::ReloadConfig => {
+                let config = Config::load(&self.config.path).wrap_err("when reloading config")?;
+                self.model.reload(&config);
+                self.config = config;
+            }
             AppAction::Say { message } => {
                 self.client
                     .irc
