@@ -10,7 +10,9 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use tui::style::Color;
 use twitch_irc::message::PrivmsgMessage;
 
-use crate::{app::AppAction, client::TwitchMessage};
+use crate::app::AppAction;
+use crate::client::TwitchMessage;
+use crate::config::Config;
 
 pub struct Model {
     /// Set to false to shutdown gracefully.
@@ -29,13 +31,13 @@ pub enum ChatItem {
 }
 
 impl Model {
-    pub fn new() -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             running: true,
             chat: vec![],
             chatters: HashMap::new(),
             selected_item: None,
-            commands: Self::init_commands(),
+            commands: Self::init_commands(&config.commands),
         }
     }
 

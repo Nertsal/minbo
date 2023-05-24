@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
+use crate::config::SimpleCommands;
+
 use super::action::Action;
 use super::*;
 
-use minmands::{command, CommandNode, ParseError};
+use minmands::{command, CommandBuilder, CommandNode, ParseError};
 
 #[derive(Debug, Clone)]
 pub struct CommandTree {
@@ -28,6 +30,8 @@ impl CommandTree {
 /// Arguments are refered to in the docs like `$0` (for the first argument).
 #[derive(Debug, Clone)]
 pub enum CommandAction {
+    /// Echo the message.
+    Say(String),
     /// Says hello to $0.
     Hello,
 }
@@ -108,6 +112,7 @@ impl CommandTree {
 impl CommandAction {
     pub fn into_action(self, mut arguments: Vec<String>) -> Result<Action, ArgsError> {
         match self {
+            CommandAction::Say(msg) => Ok(Action::Say(msg)),
             CommandAction::Hello => {
                 verify_args(&arguments, 1, true)?;
                 let name = arguments.pop().unwrap();
@@ -157,14 +162,23 @@ impl Model {
         Ok(app_actions)
     }
 
-    pub fn init_commands() -> Vec<CommandTree> {
-        vec![CommandTree::new(
+    pub fn init_commands(commands: &SimpleCommands) -> Vec<CommandTree> {
+        let simple = commands.commands.iter().map(|(command, response)| {
+            CommandTree::new(
+                commands.cooldown,
+                CommandBuilder::new()
+                    .literal([format!("!{}", command)])
+                    .finalize(true, CommandAction::Say(response.to_owned())),
+            )
+        });
+        let hardcoded = [CommandTree::new(
             30.0, // 30 sec cooldown
             command!(
                 "!hello";
                 word;
                 true, CommandAction::Hello
             ),
-        )]
+        )];
+        simple.chain(hardcoded).collect()
     }
 }

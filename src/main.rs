@@ -59,7 +59,7 @@ async fn main() -> color_eyre::Result<()> {
         .wrap_err("when setting up client")?;
 
     // Start the app
-    app::App::new(client, args.channel_login)
+    app::App::new(client, config, args.channel_login)
         .wrap_err("when setting up app")?
         .run()
         .await

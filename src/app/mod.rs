@@ -9,6 +9,7 @@ use crossterm::terminal::{disable_raw_mode, EnterAlternateScreen, LeaveAlternate
 use tui::backend::CrosstermBackend;
 
 use crate::client::TwitchClient;
+use crate::config::Config;
 use crate::model::Model;
 
 const TARGET_DELTA_TIME: f64 = 1.0 / 5.0;
@@ -32,11 +33,15 @@ pub enum AppAction {
 }
 
 impl App {
-    pub fn new(client: TwitchClient, channel_login: String) -> color_eyre::Result<Self> {
+    pub fn new(
+        client: TwitchClient,
+        config: Config,
+        channel_login: String,
+    ) -> color_eyre::Result<Self> {
         Ok(Self {
             client,
             terminal: Self::init_terminal().wrap_err("when setting up a terminal")?,
-            model: Model::new(),
+            model: Model::new(config),
             render: Render::new(),
             channel_login,
         })
