@@ -46,7 +46,7 @@ impl Commands {
 }
 
 impl Model {
-    pub fn handle_command_call(&mut self, call: CommandCall) -> color_eyre::Result<Vec<AppAction>> {
+    pub fn handle_command_call(&mut self, call: CommandCall) -> Vec<AppAction> {
         // Parse commands
         let mut actions = Vec::new();
         for command in self.commands.iter_mut() {
@@ -73,9 +73,9 @@ impl Model {
 
         let mut app_actions = Vec::new();
         for action in actions {
-            let actions = self.execute(action)?;
+            let actions = self.execute(action);
             app_actions.extend(actions);
         }
-        Ok(app_actions)
+        app_actions
     }
 }

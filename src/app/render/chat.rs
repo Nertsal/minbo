@@ -1,14 +1,14 @@
 use tui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Span, Spans, StyledGrapheme, Text},
     widgets::{Block, Borders, Widget},
 };
 use twitch_irc::message::PrivmsgMessage;
 use unicode_width::UnicodeWidthStr;
 
-use crate::model::{Chat, ChatItem};
+use crate::model::{Chat, ChatItem, ChatMode};
 
 use super::Render;
 
@@ -24,7 +24,13 @@ impl Render {
                 ChatItem::Event(msg) => self.render_event(msg),
             })
             .collect();
-        ChatWidget::new(items, chat.selected_item)
+
+        let input = InputWidget {
+            content: &chat.input.content,
+            cursor: chat.input.cursor,
+        };
+
+        ChatWidget::new(chat.mode, items, chat.selected_item, input)
             .block(Block::default().title("Chat").borders(Borders::all()))
     }
 
@@ -66,6 +72,7 @@ enum ChatItemRender<'a> {
 
 #[derive(Debug, Clone)]
 struct ChatWidget<'a> {
+    mode: ChatMode,
     /// A block to wrap the widget in
     block: Option<Block<'a>>,
     /// Widget style
@@ -74,15 +81,29 @@ struct ChatWidget<'a> {
     items: Vec<ChatItemRender<'a>>,
     /// Index of the selected message. Events cannot be selected.
     selected_message: Option<usize>,
+    input: InputWidget<'a>,
+}
+
+#[derive(Debug, Clone)]
+struct InputWidget<'a> {
+    content: &'a str,
+    cursor: usize,
 }
 
 impl<'a> ChatWidget<'a> {
-    pub fn new(items: Vec<ChatItemRender<'a>>, selected_message: Option<usize>) -> ChatWidget<'a> {
+    pub fn new(
+        mode: ChatMode,
+        items: Vec<ChatItemRender<'a>>,
+        selected_message: Option<usize>,
+        input: InputWidget<'a>,
+    ) -> ChatWidget<'a> {
         ChatWidget {
+            mode,
             block: None,
             style: Style::default(),
             items,
             selected_message,
+            input,
         }
     }
 
@@ -127,7 +148,8 @@ impl<'a> Widget for ChatWidget<'a> {
         // TODO: ignore old messages/cache wrapping
         for (item_id, item) in self.items.iter().enumerate() {
             // Highlight prefix
-            let prefix = if Some(item_id) == self.selected_message {
+            let prefix = if Some(item_id) == self.selected_message && self.mode == ChatMode::Normal
+            {
                 highlight_symbol
             } else {
                 &blank_symbol
@@ -185,6 +207,28 @@ impl<'a> Widget for ChatWidget<'a> {
                     }
                 }
             }
+        }
+
+        // Input box
+        if let ChatMode::Insert = self.mode {
+            let (before, after) = self
+                .input
+                .content
+                .split_at(self.input.cursor.min(self.input.content.len()));
+            let (at, after) = if after.is_empty() {
+                (" ", "")
+            } else {
+                after.split_at(1)
+            };
+
+            let spans = Spans::from(vec![
+                Span::raw(" ".repeat(NAME_LENGTH)),
+                Span::raw(highlight_symbol),
+                Span::raw(before),
+                Span::styled(at, Style::default().add_modifier(Modifier::UNDERLINED)),
+                Span::raw(after),
+            ]);
+            chat_lines.push((spans, Alignment::Left));
         }
 
         // Render line by line in reverse order to show newest first

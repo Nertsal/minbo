@@ -2,6 +2,7 @@ mod action;
 mod chat;
 mod commands;
 mod handle_event;
+mod input;
 
 use std::collections::HashMap;
 
@@ -13,6 +14,7 @@ use crate::config::Config;
 
 pub use self::chat::*;
 use self::commands::Commands;
+pub use self::input::*;
 
 pub struct Model {
     /// Set to false to shutdown gracefully.

@@ -12,7 +12,7 @@ use crate::client::TwitchClient;
 use crate::config::Config;
 use crate::model::Model;
 
-const TARGET_DELTA_TIME: f64 = 1.0 / 5.0;
+const TARGET_DELTA_TIME: f64 = 1.0 / 20.0;
 
 type Backend = CrosstermBackend<std::io::Stdout>;
 type Terminal = tui::Terminal<Backend>;
@@ -130,11 +130,7 @@ impl App {
                 .wrap_err("when polling a terminal event")?
             {
                 let event = crossterm::event::read().wrap_err("when reading a terminal event")?;
-                actions.extend(
-                    self.model
-                        .handle_terminal_event(event)
-                        .wrap_err("when handling a terminal event")?,
-                );
+                actions.extend(self.model.handle_terminal_event(event));
                 redraw = true;
             }
 

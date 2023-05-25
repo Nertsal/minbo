@@ -1,4 +1,3 @@
-use color_eyre::eyre::Context;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::client::TwitchMessage;
@@ -28,9 +27,7 @@ impl Model {
                     message: &message.message_text,
                     authority: AuthorityLevel::from_badges(&message.badges),
                 };
-                let actions = self
-                    .handle_command_call(call)
-                    .wrap_err("when handling a command call")?;
+                let actions = self.handle_command_call(call);
 
                 self.chat.items.push(ChatItem::Message(Box::new(message)));
                 Ok(actions)
@@ -44,51 +41,29 @@ impl Model {
     }
 
     /// Process a terminal event.
-    pub fn handle_terminal_event(&mut self, event: Event) -> color_eyre::Result<Vec<AppAction>> {
+    pub fn handle_terminal_event(&mut self, event: Event) -> Vec<AppAction> {
         match event {
-            Event::FocusGained => {}
-            Event::FocusLost => {}
             Event::Key(key) => self.handle_key(key),
-            Event::Mouse(_) => {}
-            Event::Paste(_) => {}
-            Event::Resize(_, _) => {}
-        }
-        Ok(vec![])
-    }
-
-    fn handle_key(&mut self, event: KeyEvent) {
-        if let KeyCode::Char(c) = event.code {
-            self.handle_char(c, event.modifiers)
+            _ => vec![],
         }
     }
 
-    fn handle_char(&mut self, c: char, modifiers: KeyModifiers) {
-        match c {
-            'c' if modifiers.contains(KeyModifiers::CONTROL) => {
+    fn handle_key(&mut self, event: KeyEvent) -> Vec<AppAction> {
+        // C-c to exit
+        if let KeyCode::Char('c') = event.code {
+            if event.modifiers.contains(KeyModifiers::CONTROL) {
                 self.running = false;
+                return vec![];
             }
-            'j' => {
-                let max = self.chat.items.len().max(1) - 1;
-                self.chat.selected_item = Some(
-                    self.chat
-                        .selected_item
-                        .map(|i| (i + 1).min(max))
-                        .unwrap_or(max),
-                );
-            }
-            'k' => {
-                let max = self.chat.items.len().max(1) - 1;
-                self.chat.selected_item = Some(
-                    self.chat
-                        .selected_item
-                        .map(|i| i.saturating_sub(1))
-                        .unwrap_or(max),
-                );
-            }
-            'G' => {
-                self.chat.selected_item = None;
-            }
-            _ => {}
         }
+
+        // TODO: focused window only
+        let actions = self.chat.handle_key(event);
+
+        let mut app_actions = Vec::new();
+        for action in actions {
+            app_actions.extend(self.execute(action));
+        }
+        app_actions
     }
 }
