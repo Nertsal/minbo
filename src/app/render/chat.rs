@@ -8,23 +8,23 @@ use tui::{
 use twitch_irc::message::PrivmsgMessage;
 use unicode_width::UnicodeWidthStr;
 
-use crate::model::{ChatItem, Model};
+use crate::model::{Chat, ChatItem};
 
 use super::Render;
 
 const NAME_LENGTH: usize = 25;
 
 impl Render {
-    pub fn render_chat<'a>(&self, model: &'a Model) -> impl Widget + 'a {
-        let chat: Vec<_> = model
-            .chat
+    pub fn render_chat<'a>(&self, chat: &'a Chat) -> impl Widget + 'a {
+        let items: Vec<_> = chat
+            .items
             .iter()
             .map(|item| match item {
-                ChatItem::Message(msg) => self.render_message(model, msg),
+                ChatItem::Message(msg) => self.render_message(chat, msg),
                 ChatItem::Event(msg) => self.render_event(msg),
             })
             .collect();
-        Chat::new(chat, model.selected_item)
+        ChatWidget::new(items, chat.selected_item)
             .block(Block::default().title("Chat").borders(Borders::all()))
     }
 
@@ -35,8 +35,8 @@ impl Render {
         ChatItemRender::Event { text }
     }
 
-    fn render_message<'a>(&self, model: &Model, msg: &'a PrivmsgMessage) -> ChatItemRender<'a> {
-        let color = model
+    fn render_message<'a>(&self, chat: &Chat, msg: &'a PrivmsgMessage) -> ChatItemRender<'a> {
+        let color = chat
             .chatters
             .get(&msg.sender.name)
             .copied()
@@ -65,7 +65,7 @@ enum ChatItemRender<'a> {
 }
 
 #[derive(Debug, Clone)]
-struct Chat<'a> {
+struct ChatWidget<'a> {
     /// A block to wrap the widget in
     block: Option<Block<'a>>,
     /// Widget style
@@ -76,9 +76,9 @@ struct Chat<'a> {
     selected_message: Option<usize>,
 }
 
-impl<'a> Chat<'a> {
-    pub fn new(items: Vec<ChatItemRender<'a>>, selected_message: Option<usize>) -> Chat<'a> {
-        Chat {
+impl<'a> ChatWidget<'a> {
+    pub fn new(items: Vec<ChatItemRender<'a>>, selected_message: Option<usize>) -> ChatWidget<'a> {
+        ChatWidget {
             block: None,
             style: Style::default(),
             items,
@@ -86,18 +86,18 @@ impl<'a> Chat<'a> {
         }
     }
 
-    pub fn block(mut self, block: Block<'a>) -> Chat<'a> {
+    pub fn block(mut self, block: Block<'a>) -> ChatWidget<'a> {
         self.block = Some(block);
         self
     }
 
-    pub fn style(mut self, style: Style) -> Chat<'a> {
+    pub fn style(mut self, style: Style) -> ChatWidget<'a> {
         self.style = style;
         self
     }
 }
 
-impl<'a> Widget for Chat<'a> {
+impl<'a> Widget for ChatWidget<'a> {
     fn render(mut self, area: Rect, buf: &mut Buffer) {
         buf.set_style(area, self.style);
         let text_area = match self.block.take() {

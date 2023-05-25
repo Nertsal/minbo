@@ -28,6 +28,7 @@ impl Render {
     /// Render the model to the terminal.
     pub fn draw(&mut self, terminal: &mut Terminal, model: &Model) -> color_eyre::Result<()> {
         self.chatters = model
+            .chat
             .chatters
             .iter()
             .map(|(name, &color)| (name.clone(), color))
@@ -51,7 +52,7 @@ impl Render {
             .constraints([Constraint::Length(30), Constraint::Min(10)].as_ref())
             .split(frame.size());
 
-        let chat = self.render_chat(model);
+        let chat = self.render_chat(&model.chat);
         frame.render_widget(chat, chunks[0]);
 
         let logs = self.render_logs();
