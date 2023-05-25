@@ -72,6 +72,13 @@ impl Chat {
                 'i' => {
                     self.mode = ChatMode::Insert;
                 }
+                'd' => {
+                    if let Some(i) = self.selected_item {
+                        if i < self.items.len() {
+                            self.items.remove(i);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
