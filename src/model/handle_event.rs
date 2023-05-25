@@ -29,7 +29,13 @@ impl Model {
                 };
                 let actions = self.handle_command_call(call);
 
-                self.chat.items.push(ChatItem::Message(Box::new(message)));
+                // Log
+                let msg = ChatMessage {
+                    sender_name: message.sender.name,
+                    text: message.message_text,
+                };
+                self.chat.items.push(ChatItem::Message(msg));
+
                 Ok(actions)
             }
             TwitchMessage::UserNotice(notice) => {

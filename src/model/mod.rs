@@ -7,7 +7,6 @@ mod input;
 use std::collections::HashMap;
 
 use tui::style::Color;
-use twitch_irc::message::PrivmsgMessage;
 
 use crate::app::AppAction;
 use crate::config::Config;

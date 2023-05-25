@@ -14,9 +14,14 @@ pub struct Chat {
 
 #[derive(Debug)]
 pub enum ChatItem {
-    /// Boxed due to large size.
-    Message(Box<PrivmsgMessage>),
+    Message(ChatMessage),
     Event(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub sender_name: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,10 +84,14 @@ impl Chat {
             KeyCode::Esc => self.mode = ChatMode::Normal,
             KeyCode::Enter => {
                 let command = self.input.take();
+                self.items.push(ChatItem::Message(ChatMessage {
+                    sender_name: "Host".to_string(),
+                    text: command.clone(),
+                }));
                 actions.push(Action::HandleCommand {
                     command,
                     authority: AuthorityLevel::Host,
-                })
+                });
             }
             _ => self.input.handle_key(event),
         }

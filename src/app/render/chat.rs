@@ -5,10 +5,9 @@ use tui::{
     text::{Span, Spans, StyledGrapheme, Text},
     widgets::{Block, Borders, Widget},
 };
-use twitch_irc::message::PrivmsgMessage;
 use unicode_width::UnicodeWidthStr;
 
-use crate::model::{Chat, ChatItem, ChatMode};
+use crate::model::{Chat, ChatItem, ChatMessage, ChatMode};
 
 use super::Render;
 
@@ -41,17 +40,17 @@ impl Render {
         ChatItemRender::Event { text }
     }
 
-    fn render_message<'a>(&self, chat: &Chat, msg: &'a PrivmsgMessage) -> ChatItemRender<'a> {
+    fn render_message<'a>(&self, chat: &Chat, msg: &'a ChatMessage) -> ChatItemRender<'a> {
         let color = chat
             .chatters
-            .get(&msg.sender.name)
+            .get(&msg.sender_name)
             .copied()
             .unwrap_or(Color::LightBlue);
         let sender = Spans::from(vec![Span::styled(
-            &msg.sender.name,
+            &msg.sender_name,
             Style::default().fg(color),
         )]);
-        let msg = Spans::from(super::colorize_names(&msg.message_text, &self.chatters));
+        let msg = Spans::from(super::colorize_names(&msg.text, &self.chatters));
         ChatItemRender::Msg { sender, msg }
     }
 }
@@ -222,8 +221,9 @@ impl<'a> Widget for ChatWidget<'a> {
             };
 
             let spans = Spans::from(vec![
-                Span::raw(" ".repeat(NAME_LENGTH)),
+                Span::raw(" ".repeat(NAME_LENGTH + 1)), // +1 for the colon after the name
                 Span::raw(highlight_symbol),
+                Span::raw(" "),
                 Span::raw(before),
                 Span::styled(at, Style::default().add_modifier(Modifier::UNDERLINED)),
                 Span::raw(after),
