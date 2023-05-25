@@ -36,7 +36,7 @@ impl Render {
     fn render_event<'a>(&self, msg: &'a str) -> ChatItemRender<'a> {
         let spans = super::colorize_names(msg, &self.chatters);
         let mut text = Text::from(Spans::from(spans));
-        text.patch_style(Style::default().fg(Color::Magenta).bg(Color::DarkGray));
+        text.patch_style(Style::default().fg(Color::Magenta));
         ChatItemRender::Event { text }
     }
 
